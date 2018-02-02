@@ -19,6 +19,8 @@
 # zstyle ":plugin:history-search-multi-word" synhl "yes"
 # zstyle ":plugin:history-search-multi-word" clear-on-cancel "no"
 
+[[ -z $HISTORY_BASE ]] && HISTORY_BASE="$HOME/.directory_history"
+[[ -z $PER_DIRECTORY_HISTORY_TOGGLE ]] && PER_DIRECTORY_HISTORY_TOGGLE='^G'
 [[ "$__HSMW_MH_SOURCED" != "1" ]] && source "$HSMW_REPO_DIR/hsmw-highlight"
 local right_brace_is_recognised_everywhere
 integer path_dirs_was_set multi_func_def ointeractive_comments
@@ -162,7 +164,11 @@ if (( ${+functions[_hsmw_main]} == 0 )); then
         # Colorify
         #
 
-        local preamble=$'\n'"Ctrl-K – context, Ctrl-J – bump. Entry #$__hsmw_hcw_index of $max_index"$'\n'
+        local history_type=""
+        if (( ${+_per_directory_history_is_global} )); then
+          history_type=", Ctrl-G – $(if [[ $_per_directory_history_is_global == false ]]; then echo 'global'; else echo "local"; fi)"
+        fi
+        local preamble=$'\n'"Ctrl-K – context, Ctrl-J – bump$history_type. Entry #$__hsmw_hcw_index of $max_index"$'\n'
         integer offset=${#preamble}+${#BUFFER}
         POSTDISPLAY="$preamble$text"
 
@@ -231,6 +237,20 @@ _hsmw_cancel_accept() {
     unset __hsmw_conc
     __hsmw_hcw_index=-1
     zle .accept-line
+}
+
+_hsmw_per_directory_history_toggle_history() {
+    if (( ${+_per_directory_history_is_global} )); then
+      if [[ $_per_directory_history_is_global == true ]]; then
+        _per-directory-history-set-directory-history
+      else
+        _per-directory-history-set-global-history
+      fi
+      zle reset-prompt
+      __hsmw_hcw_restart="1"
+      __hsmw_page_start_idx=0
+      _hsmw_simulate_widget
+    fi
 }
 
 _hsmw_backward_kill_word() {
@@ -364,6 +384,12 @@ if [[ "$__hsmw_hcw_call_count" -eq "1" ]]; then
     zle -N _hsmw_cancel_accept
     bindkey -M hsmw "^V" _hsmw_cancel_accept
     bindkey -M hsmw "^[" _hsmw_cancel_accept
+
+    zle -l "per-directory-history-toggle-history"
+    if [ $? -eq 0 ]; then
+      zle -N _hsmw_per_directory_history_toggle_history
+      bindkey -M hsmw '^G' "_hsmw_per_directory_history_toggle_history"
+    fi
 
     # Load cancel behavior
     local __hsmw_conc
